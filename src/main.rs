@@ -56,6 +56,7 @@ fn main() -> Result<()> {
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                 destroying = true;
                 *control_flow = ControlFlow::Exit;
+                unsafe { app.device.device_wait_idle().unwrap(); }
                 unsafe { app.destroy(); }
             }
             _ => {}
@@ -192,6 +193,8 @@ impl App {
             .wait_semaphores(signal_semaphores)
             .swapchains(swapchains)
             .image_indices(image_indices);
+
+        self.device.queue_present_khr(self.data.present_queue, &present_info)?;
 
         Ok(())
     }
