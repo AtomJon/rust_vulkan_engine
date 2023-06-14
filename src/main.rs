@@ -188,16 +188,21 @@ impl App {
             u64::max_value(),
         )?;
     
-        let image_index = self
+        let result = self
             .device
             .acquire_next_image_khr(
                 self.data.swapchain,
                 u64::max_value(),
                 self.data.image_available_semaphores[self.frame],
                 vk::Fence::null(),
-            )?
-            .0 as usize;
+        );
 
+        let image_index = match result {
+            Ok((image_index, __)) => image_index as usize,
+            Err(vk::ErrorCode::OUT_OF_DATE_KHR) => return self.recreate_swapchain(window),
+            Err(e) => return Err(anyhow!(e)),
+        };
+        
         if !self.data.images_in_flight[image_index as usize].is_null() {
             self.device.wait_for_fences(
                 &[self.data.images_in_flight[image_index as usize]],
@@ -232,7 +237,16 @@ impl App {
             .swapchains(swapchains)
             .image_indices(image_indices);
 
-        self.device.queue_present_khr(self.data.present_queue, &present_info)?;
+        let result = self.device.queue_present_khr(self.data.present_queue, &present_info);
+
+        let changed = result == Ok(vk::SuccessCode::SUBOPTIMAL_KHR)
+            || result == Err(vk::ErrorCode::OUT_OF_DATE_KHR);
+        
+        if changed {
+            self.recreate_swapchain(window)?;
+        } else if let Err(e) = result {
+            return Err(anyhow!(e));
+        }
 
         self.frame = (self.frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
