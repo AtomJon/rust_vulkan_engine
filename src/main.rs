@@ -239,6 +239,39 @@ impl App {
         Ok(())
     }
 
+    unsafe fn recreate_swapchain(&mut self, window: &Window) -> Result<()> {
+        self.device.device_wait_idle()?;
+
+        self.destroy_swapchain();
+
+        create_swapchain(window, &self.instance, &self.device, &mut self.data)?;
+        create_swapchain_image_views(&self.device, &mut self.data)?;
+        create_render_pass(&self.instance, &self.device, &mut self.data)?;
+        create_pipeline(&self.device, &mut self.data)?;
+        create_framebuffers(&self.device, &mut self.data)?;
+        create_uniform_buffers(&self.instance, &self.device, &mut self.data)?;
+        create_descriptor_pool(&self.device, &mut self.data)?;
+        create_descriptor_sets(&self.device, &mut self.data)?;
+
+        self.data
+            .images_in_flight
+            .resize(self.data.swapchain_images.len(), vk::Fence::null());
+        
+        Ok(())
+    }
+
+    unsafe fn destroy_swapchain(&mut self) {
+        self.device.free_command_buffers(self.data.command_pool, &self.data.command_buffers);
+        self.device.destroy_descriptor_pool(self.data.descriptor_pool, None);
+        self.data.uniform_buffers_memory.iter().for_each(|m| self.device.free_memory(*m, None));
+        self.data.uniform_buffers.iter().for_each(|b| self.device.destroy_buffer(*b, None));
+        self.data.framebuffers.iter().for_each(|f| self.device.destroy_framebuffer(*f, None));
+        self.device.destroy_pipeline(self.data.pipeline, None);
+        self.device.destroy_pipeline_layout(self.data.pipeline_layout, None);
+        self.device.destroy_render_pass(self.data.render_pass, None);
+        self.data.swapchain_image_views.iter().for_each(|v| self.device.destroy_image_view(*v, None));
+        self.device.destroy_swapchain_khr(self.data.swapchain, None);
+    }    
 
     // TODO: CHANGE TO PUSH CONSTANT
     unsafe fn update_uniform_buffer(&self, image_index: usize) -> Result<()> {
@@ -265,48 +298,13 @@ impl App {
     /// Destroys our Vulkan app.
     unsafe fn destroy(&mut self) {
 
-        // Include in swapchain recreation
-        self.device.destroy_descriptor_pool(self.data.descriptor_pool, None);
-
-        self.data.uniform_buffers
-            .iter()
-            .for_each(|b| self.device.destroy_buffer(*b, None));
-        self.data.uniform_buffers_memory
-            .iter()
-            .for_each(|m| self.device.free_memory(*m, None));
-        // Include in swapchain recreation
+        self.destroy_swapchain();
     
-        self.data.in_flight_fences
-            .iter()
-            .for_each(|f| self.device.destroy_fence(*f, None));
-
-        self.data.render_finished_semaphores
-            .iter()
-            .for_each(|s| self.device.destroy_semaphore(*s, None));
-        
-        self.data.image_available_semaphores
-            .iter()
-            .for_each(|s| self.device.destroy_semaphore(*s, None));
-
-        self.device.destroy_command_pool(self.data.command_pool, None);
-
-        self.data.framebuffers
-            .iter()
-            .for_each(|f| self.device.destroy_framebuffer(*f, None));
-
-        self.device.destroy_pipeline(self.data.pipeline, None);
-        self.device.destroy_pipeline_layout(self.data.pipeline_layout, None);
-        self.device.destroy_render_pass(self.data.render_pass, None);
-
-        self.data.swapchain_image_views
-            .iter()
-            .for_each(|v| self.device.destroy_image_view(*v, None));
-
-        self.device.destroy_swapchain_khr(self.data.swapchain, None);
-        
-
+        self.data.in_flight_fences.iter().for_each(|f| self.device.destroy_fence(*f, None));
+        self.data.render_finished_semaphores.iter().for_each(|s| self.device.destroy_semaphore(*s, None));
+        self.data.image_available_semaphores.iter().for_each(|s| self.device.destroy_semaphore(*s, None));  
+        self.device.destroy_command_pool(self.data.command_pool, None);  
         self.device.destroy_descriptor_set_layout(self.data.descriptor_set_layout, None);
-
         self.device.destroy_device(None);
 
         if VALIDATION_ENABLED {
