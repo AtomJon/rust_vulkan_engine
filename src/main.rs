@@ -57,6 +57,7 @@ fn main() -> Result<()> {
             // Render a frame if our Vulkan app is not being destroyed.
             Event::MainEventsCleared if !destroying =>
                 unsafe { app.render(&window) }.unwrap(),
+            Event::WindowEvent { event: WindowEvent::Resized(_), .. } => app.resized = true,
             // Destroy our Vulkan app.
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                 destroying = true;
@@ -145,6 +146,7 @@ struct App {
     data: AppData,
     frame: usize,
     start: Instant,
+    resized: bool,
 }
 
 impl App {
@@ -177,7 +179,7 @@ impl App {
 
         create_sync_objects(&device, &mut data)?;
 
-        Ok(Self { entry, instance, data, device, frame: 0, start: Instant::now() })
+        Ok(Self { entry, instance, data, device, frame: 0, start: Instant::now(), resized: false })
     }
 
     /// Renders a frame for our Vulkan app.
@@ -242,7 +244,8 @@ impl App {
         let changed = result == Ok(vk::SuccessCode::SUBOPTIMAL_KHR)
             || result == Err(vk::ErrorCode::OUT_OF_DATE_KHR);
         
-        if changed {
+        if self.resized || changed {
+            self.resized = false;
             self.recreate_swapchain(window)?;
         } else if let Err(e) = result {
             return Err(anyhow!(e));
@@ -266,6 +269,7 @@ impl App {
         create_uniform_buffers(&self.instance, &self.device, &mut self.data)?;
         create_descriptor_pool(&self.device, &mut self.data)?;
         create_descriptor_sets(&self.device, &mut self.data)?;
+        create_command_buffers(&self.device, &mut self.data)?;
 
         self.data
             .images_in_flight
