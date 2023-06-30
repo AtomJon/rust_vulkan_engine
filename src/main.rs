@@ -17,8 +17,13 @@ const MAX_FRAMES_IN_FLIGHT: usize = 2;
 use std::ptr::copy_nonoverlapping as memcpy;
 use std::time::Instant;
 use std::mem::size_of;
+use std::collections::HashSet;
+use std::ffi::CStr;
+use std::os::raw::c_void;
+
 use thiserror::Error;
 use anyhow::{anyhow, Result};
+
 use vulkanalia::loader::{LibloadingLoader, LIBRARY};
 use vulkanalia::window as vk_window;
 use vulkanalia::prelude::v1_0::*;
@@ -29,10 +34,6 @@ use winit::dpi::LogicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
-
-use std::collections::HashSet;
-use std::ffi::CStr;
-use std::os::raw::c_void;
 
 use log::*;
 
