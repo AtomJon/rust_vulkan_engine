@@ -88,6 +88,27 @@ fn main() -> Result<()> {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
+struct Vertex {
+    pos: glm::Vec2,
+    color: glm::Vec3,
+}
+
+impl Vertex {
+    fn new(pos: glm::Vec2, color: glm::Vec3) -> Self {
+        Self { pos, color }
+    }
+}
+
+lazy_static! {
+    static ref VERTICES: Vec<Vertex> = vec![
+        Vertex::new(glm::vec2(0.0, -0.5), glm::vec3(1.0, 0.0, 0.0)),
+        Vertex::new(glm::vec2(0.5, 0.5), glm::vec3(0.0, 1.0, 0.0)),
+        Vertex::new(glm::vec2(-0.5, 0.5), glm::vec3(0.0, 0.0, 1.0)),
+    ];
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
 struct UniformBufferObject {
     time: f32
 }
