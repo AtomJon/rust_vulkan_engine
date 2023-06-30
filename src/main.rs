@@ -51,13 +51,25 @@ fn main() -> Result<()> {
 
     let mut app = unsafe { App::create(&window)? };
     let mut destroying = false;
+    let mut minimized = false;
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
             // Render a frame if our Vulkan app is not being destroyed.
-            Event::MainEventsCleared if !destroying =>
+            Event::MainEventsCleared if !destroying && !minimized =>
                 unsafe { app.render(&window) }.unwrap(),
-            Event::WindowEvent { event: WindowEvent::Resized(_), .. } => app.resized = true,
+
+            // Window is resized and swapchain needs to be recreated. If app is minimized, rendering will seize.
+            Event::WindowEvent { event: WindowEvent::Resized(size), .. } =>
+            {
+                if size.width == 0 && size.height == 0 {
+                    minimized = true;
+                } else {
+                    minimized = false;
+                    app.resized = true
+                }
+            }
+            
             // Destroy our Vulkan app.
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                 destroying = true;
