@@ -24,6 +24,9 @@ use std::os::raw::c_void;
 use thiserror::Error;
 use anyhow::{anyhow, Result};
 
+use nalgebra_glm as glm;
+use lazy_static::lazy_static;
+
 use vulkanalia::loader::{LibloadingLoader, LIBRARY};
 use vulkanalia::window as vk_window;
 use vulkanalia::prelude::v1_0::*;
