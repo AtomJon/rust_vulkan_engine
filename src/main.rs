@@ -17,8 +17,16 @@ const MAX_FRAMES_IN_FLIGHT: usize = 2;
 use std::ptr::copy_nonoverlapping as memcpy;
 use std::time::Instant;
 use std::mem::size_of;
+use std::collections::HashSet;
+use std::ffi::CStr;
+use std::os::raw::c_void;
+
 use thiserror::Error;
 use anyhow::{anyhow, Result};
+
+use nalgebra_glm as glm;
+use lazy_static::lazy_static;
+
 use vulkanalia::loader::{LibloadingLoader, LIBRARY};
 use vulkanalia::window as vk_window;
 use vulkanalia::prelude::v1_0::*;
@@ -29,10 +37,6 @@ use winit::dpi::LogicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
-
-use std::collections::HashSet;
-use std::ffi::CStr;
-use std::os::raw::c_void;
 
 use log::*;
 
@@ -80,6 +84,57 @@ fn main() -> Result<()> {
             _ => {}
         }
     });
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+struct Vertex {
+    pos: glm::Vec2,
+    color: glm::Vec3,
+}
+
+impl Vertex {
+    fn new(pos: glm::Vec2, color: glm::Vec3) -> Self {
+        Self { pos, color }
+    }
+
+    fn binding_description() -> vk::VertexInputBindingDescription {
+        vk::VertexInputBindingDescription::builder()
+            .binding(0)
+            .stride(size_of::<Vertex>() as u32)
+            .input_rate(vk::VertexInputRate::VERTEX)
+            .build()
+    }
+
+    fn attribute_descriptions() -> [vk::VertexInputAttributeDescription; 2] {
+        let pos = vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(0)
+            .format(vk::Format::R32G32_SFLOAT)
+            .offset(0)
+            .build();
+
+        let color = vk::VertexInputAttributeDescription::builder()
+            .binding(0)
+            .location(1)
+            .format(vk::Format::R32G32B32_SFLOAT)
+            .offset(size_of::<glm::Vec2>() as u32)
+            .build();
+        
+        return [pos, color];
+    }
+}
+
+lazy_static! {
+    static ref VERTICES: Vec<Vertex> = vec![
+        Vertex::new(glm::vec2(-0.5, -0.5), glm::vec3(1.0, 0.0, 0.0)),
+        Vertex::new(glm::vec2(0.5, 0.5), glm::vec3(0.0, 1.0, 0.0)),
+        Vertex::new(glm::vec2(-0.5, 0.5), glm::vec3(0.0, 0.0, 1.0)),
+
+        Vertex::new(glm::vec2(-0.5, -0.5), glm::vec3(1.0, 0.0, 0.0)),
+        Vertex::new(glm::vec2(0.5, -0.5), glm::vec3(1.0, 0.0, 0.0)),
+        Vertex::new(glm::vec2(0.5, 0.5), glm::vec3(0.0, 1.0, 0.0)),
+    ];
 }
 
 #[repr(C)]
@@ -187,6 +242,7 @@ impl App {
         create_uniform_buffers(&instance, &device, &mut data)?;
         create_descriptor_pool(&device, &mut data)?;
         create_descriptor_sets(&device, &mut data)?;
+        create_vertex_buffer(&instance, &device, &mut data)?;
         create_command_buffers(&device, &mut data)?;
 
         create_sync_objects(&device, &mut data)?;
@@ -329,6 +385,9 @@ impl App {
     unsafe fn destroy(&mut self) {
 
         self.destroy_swapchain();
+
+        self.device.destroy_buffer(self.data.vertex_buffer, None);
+        self.device.free_memory(self.data.vertex_buffer_memory, None);
     
         self.data.in_flight_fences.iter().for_each(|f| self.device.destroy_fence(*f, None));
         self.data.render_finished_semaphores.iter().for_each(|s| self.device.destroy_semaphore(*s, None));
@@ -374,6 +433,49 @@ struct AppData {
     uniform_buffers_memory: Vec<vk::DeviceMemory>,
     descriptor_pool: vk::DescriptorPool,
     descriptor_sets: Vec<vk::DescriptorSet>,
+    vertex_buffer: vk::Buffer,
+    vertex_buffer_memory: vk::DeviceMemory,
+}
+
+unsafe fn create_vertex_buffer(
+    instance: &Instance,
+    device: &Device,
+    data: &mut AppData,
+) -> Result<()> {
+    let buffer_info = vk::BufferCreateInfo::builder()
+        .size((size_of::<Vertex>() * VERTICES.len()) as u64)
+        .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
+        .sharing_mode(vk::SharingMode::EXCLUSIVE)
+        .flags(vk::BufferCreateFlags::empty());
+
+    data.vertex_buffer = device.create_buffer(&buffer_info, None)?;
+
+    let requirements = device.get_buffer_memory_requirements(data.vertex_buffer);
+
+    let memory_info = vk::MemoryAllocateInfo::builder()
+        .allocation_size(requirements.size)
+        .memory_type_index(get_memory_type_index(
+            instance,
+            data,
+            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+            requirements,
+        )?);
+    
+    data.vertex_buffer_memory = device.allocate_memory(&memory_info, None)?;
+
+    device.bind_buffer_memory(data.vertex_buffer, data.vertex_buffer_memory, 0)?;
+
+    let memory = device.map_memory(
+        data.vertex_buffer_memory,
+        0,
+        buffer_info.size,
+        vk::MemoryMapFlags::empty(),
+    )?;
+
+    memcpy(VERTICES.as_ptr(), memory.cast(), VERTICES.len());
+    device.unmap_memory(data.vertex_buffer_memory);
+
+    Ok(())
 }
 
 unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<()> {
@@ -594,9 +696,9 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
             &[],
         );
 
-        // let index_count = INDICES.len() as u32;
-        let index_count = 3;
+        let index_count = VERTICES.len() as u32;
 
+        device.cmd_bind_vertex_buffers(*command_buffer, 0, &[data.vertex_buffer], &[0]);
         device.cmd_draw(*command_buffer, index_count, 1, 0, 0);
             
         device.cmd_end_render_pass(*command_buffer);
@@ -879,7 +981,11 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
         .module(frag_shader_module)
         .name(b"main\0");
 
-    let vertex_input_state = vk::PipelineVertexInputStateCreateInfo::builder();
+    let binding_descriptions = &[Vertex::binding_description()];
+    let attribute_descriptions = Vertex::attribute_descriptions();
+    let vertex_input_state = vk::PipelineVertexInputStateCreateInfo::builder()
+        .vertex_binding_descriptions(binding_descriptions)
+        .vertex_attribute_descriptions(&attribute_descriptions);
 
     let input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo::builder()
         .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
