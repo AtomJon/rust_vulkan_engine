@@ -468,7 +468,8 @@ unsafe fn create_vertex_buffer(
         vk::MemoryMapFlags::empty(),
     )?;
 
-    
+    memcpy(VERTICES.as_ptr(), memory.cast(), VERTICES.len());
+    device.unmap_memory(data.vertex_buffer_memory);
 
     Ok(())
 }
@@ -691,9 +692,9 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
             &[],
         );
 
-        // let index_count = INDICES.len() as u32;
-        let index_count = 3;
+        let index_count = VERTICES.len() as u32;
 
+        device.cmd_bind_vertex_buffers(*command_buffer, 0, &[data.vertex_buffer], &[0]);
         device.cmd_draw(*command_buffer, index_count, 1, 0, 0);
             
         device.cmd_end_render_pass(*command_buffer);
