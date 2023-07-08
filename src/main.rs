@@ -238,6 +238,7 @@ impl App {
         create_uniform_buffers(&instance, &device, &mut data)?;
         create_descriptor_pool(&device, &mut data)?;
         create_descriptor_sets(&device, &mut data)?;
+        create_vertex_buffer(&instance, &device, &mut data)?;
         create_command_buffers(&device, &mut data)?;
 
         create_sync_objects(&device, &mut data)?;
@@ -380,6 +381,9 @@ impl App {
     unsafe fn destroy(&mut self) {
 
         self.destroy_swapchain();
+
+        self.device.destroy_buffer(self.data.vertex_buffer, None);
+        self.device.free_memory(self.data.vertex_buffer_memory, None);
     
         self.data.in_flight_fences.iter().for_each(|f| self.device.destroy_fence(*f, None));
         self.data.render_finished_semaphores.iter().for_each(|s| self.device.destroy_semaphore(*s, None));
@@ -425,6 +429,48 @@ struct AppData {
     uniform_buffers_memory: Vec<vk::DeviceMemory>,
     descriptor_pool: vk::DescriptorPool,
     descriptor_sets: Vec<vk::DescriptorSet>,
+    vertex_buffer: vk::Buffer,
+    vertex_buffer_memory: vk::DeviceMemory,
+}
+
+unsafe fn create_vertex_buffer(
+    instance: &Instance,
+    device: &Device,
+    data: &mut AppData,
+) -> Result<()> {
+    let buffer_info = vk::BufferCreateInfo::builder()
+        .size((size_of::<Vertex>() * VERTICES.len()) as u64)
+        .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
+        .sharing_mode(vk::SharingMode::EXCLUSIVE)
+        .flags(vk::BufferCreateFlags::empty());
+
+    data.vertex_buffer = device.create_buffer(&buffer_info, None)?;
+
+    let requirements = device.get_buffer_memory_requirements(data.vertex_buffer);
+
+    let memory_info = vk::MemoryAllocateInfo::builder()
+        .allocation_size(requirements.size)
+        .memory_type_index(get_memory_type_index(
+            instance,
+            data,
+            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+            requirements,
+        )?);
+    
+    data.vertex_buffer_memory = device.allocate_memory(&memory_info, None)?;
+
+    device.bind_buffer_memory(data.vertex_buffer, data.vertex_buffer_memory, 0)?;
+
+    let memory = device.map_memory(
+        data.vertex_buffer_memory,
+        0,
+        buffer_info.size,
+        vk::MemoryMapFlags::empty(),
+    )?;
+
+    
+
+    Ok(())
 }
 
 unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<()> {
