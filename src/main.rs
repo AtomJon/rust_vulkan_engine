@@ -59,11 +59,11 @@ fn main() -> Result<()> {
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
-            // Render a frame if our Vulkan app is not being destroyed.
+            // Render a frame if our Vulkan app is not being destroyed nor minimized.
             Event::MainEventsCleared if !destroying && !minimized =>
                 unsafe { app.render(&window) }.unwrap(),
 
-            // Window is resized and swapchain needs to be recreated. If app is minimized, rendering will seize.
+            // Window is resized and swapchain needs to be recreated. Make sure to update minimized variable.
             Event::WindowEvent { event: WindowEvent::Resized(size), .. } =>
             {
                 if size.width == 0 && size.height == 0 {
