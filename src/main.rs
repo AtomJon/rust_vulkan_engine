@@ -1199,5 +1199,5 @@ extern "system" fn debug_callback(
         trace!("({:?}) {}", type_, message);
     }
 
-    vk::FALSE
+    return vk::FALSE;
 }
