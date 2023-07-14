@@ -11,7 +11,8 @@ pub unsafe fn create_render_pass(
     instance: &Instance,
     device: &Device,
     format: &vk::Format,
-) -> Result<vk::RenderPass> {
+    out_render_pass: &mut vk::RenderPass
+) -> Result<()> {
     
     let color_attachment = vk::AttachmentDescription::builder()
         .format(*format)
@@ -50,5 +51,9 @@ pub unsafe fn create_render_pass(
     
     let render_pass = device.create_render_pass(&info, None)?;
 
-    Ok(render_pass)
+    // TODO: Find alternative method of returning function, without overhead of creating unnecessary variable.
+    // FIX: Check if gc could delete variable, since only pointer is passed.
+    *out_render_pass = render_pass;
+
+    Ok(())
 }

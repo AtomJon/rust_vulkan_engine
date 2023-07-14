@@ -185,7 +185,7 @@ impl App {
         create_swapchain(window, &instance, &device, &mut data)?;
         create_swapchain_image_views(&device, &mut data)?;
     
-        data.render_pass = create_render_pass(&instance, &device, &data.swapchain_format)?;
+        create_render_pass(&instance, &device, &data.swapchain_format, &mut data.render_pass)?;
         create_descriptor_set_layout(&device, &mut data)?;
         create_pipeline(&device, &mut data)?;
         create_framebuffers(&device, &mut data)?;
@@ -282,7 +282,7 @@ impl App {
 
         create_swapchain(window, &self.instance, &self.device, &mut self.data)?;
         create_swapchain_image_views(&self.device, &mut self.data)?;
-        self.data.render_pass = create_render_pass(&self.instance, &self.device, &self.data.swapchain_format)?;
+        create_render_pass(&self.instance, &self.device, &self.data.swapchain_format, &mut self.data.render_pass)?;
         create_pipeline(&self.device, &mut self.data)?;
         create_framebuffers(&self.device, &mut self.data)?;
         create_uniform_buffers(&self.instance, &self.device, &mut self.data)?;
