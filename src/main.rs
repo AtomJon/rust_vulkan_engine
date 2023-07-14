@@ -40,6 +40,9 @@ use log::*;
 mod vertex;
 use crate::vertex::{Vertex, VERTICES};
 
+mod uniform_buffer_object;
+use crate::uniform_buffer_object::UniformBufferObject;
+
 fn main() -> Result<()> {
     pretty_env_logger::init();
 
@@ -86,11 +89,7 @@ fn main() -> Result<()> {
     });
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-struct UniformBufferObject {
-    time: f32
-}
+
 
 unsafe fn create_instance(
     window: &Window,
