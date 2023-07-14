@@ -562,12 +562,7 @@ unsafe fn create_descriptor_set_layout(
 
     let bindings = &[ubo_binding];
     let info = vk::DescriptorSetLayoutCreateInfo::builder()
-        .bindings(bindings);
-
-    let set_layouts = &[data.descriptor_set_layout];
-    let layout_info = vk::PipelineLayoutCreateInfo::builder()
-        .set_layouts(set_layouts);
-        
+        .bindings(bindings);        
     
     data.descriptor_set_layout = device.create_descriptor_set_layout(&info, None)?;
 
