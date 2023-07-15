@@ -1,5 +1,4 @@
 use vulkanalia::prelude::v1_0::*;
-
 use anyhow::Result;
 
 pub unsafe fn create_render_pass(
