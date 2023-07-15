@@ -2,11 +2,6 @@ use vulkanalia::prelude::v1_0::*;
 
 use anyhow::Result;
 
-pub trait RenderPassData {
-    fn get_swapchain_format(&self) -> vk::Format;
-    fn set_render_pass(&self, render_pass: vk::RenderPass);
-}
-
 pub unsafe fn create_render_pass(
     instance: &Instance,
     device: &Device,
