@@ -51,8 +51,7 @@ pub unsafe fn create_render_pass(
     
     let render_pass = device.create_render_pass(&info, None)?;
 
-    // TODO: Find alternative method of returning function, without overhead of creating unnecessary variable.
-    // FIX: Check if gc could delete variable, since only pointer is passed.
+    // For the compiler, this would be equivalent to returning the value, but I prefer this syntax
     *out_render_pass = render_pass;
 
     Ok(())
