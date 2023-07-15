@@ -51,6 +51,9 @@ use create_descriptor_set_layout::*;
 mod queue_family_indices;
 use queue_family_indices::*;
 
+mod swapchain_support;
+use swapchain_support::*;
+
 fn main() -> Result<()> {
     pretty_env_logger::init();
 
@@ -767,7 +770,7 @@ unsafe fn check_physical_device(
 
     check_physical_device_extensions(instance, physical_device)?;
 
-    let support = SwapchainSupport::get(instance, data, physical_device)?;
+    let support = SwapchainSupport::get(instance, &data.surface, physical_device)?;
     if support.formats.is_empty() || support.present_modes.is_empty() {
         return Err(anyhow!(SuitabilityError("Insufficient swapchain support.")));
     }
@@ -789,33 +792,6 @@ unsafe fn check_physical_device_extensions(
         Ok(())
     } else {
         Err(anyhow!(SuitabilityError("Missing required device extensions.")))
-    }
-}
-
-#[derive(Clone, Debug)]
-struct SwapchainSupport {
-    capabilities: vk::SurfaceCapabilitiesKHR,
-    formats: Vec<vk::SurfaceFormatKHR>,
-    present_modes: Vec<vk::PresentModeKHR>,
-}
-
-impl SwapchainSupport {
-    unsafe fn get(
-        instance: &Instance,
-        data: &AppData,
-        physical_device: vk::PhysicalDevice,
-    ) -> Result<Self> {
-        Ok(Self {
-            capabilities: instance
-                .get_physical_device_surface_capabilities_khr(
-                    physical_device, data.surface)?,
-            formats: instance
-                .get_physical_device_surface_formats_khr(
-                    physical_device, data.surface)?,
-            present_modes: instance
-                .get_physical_device_surface_present_modes_khr(
-                    physical_device, data.surface)?,
-        })
     }
 }
 
@@ -982,7 +958,7 @@ unsafe fn create_swapchain(
     data: &mut AppData,
 ) -> Result<()> {
     let indices = QueueFamilyIndices::get(instance, &data.surface, data.physical_device)?;
-    let support = SwapchainSupport::get(instance, data, data.physical_device)?;
+    let support = SwapchainSupport::get(instance, &data.surface, data.physical_device)?;
 
     let surface_format = get_swapchain_surface_format(&support.formats);
     let present_mode = get_swapchain_present_mode(&support.present_modes);
