@@ -46,6 +46,9 @@ use crate::uniform_buffer_object::UniformBufferObject;
 mod create_renderpass;
 use crate::create_renderpass::*;
 
+mod create_descriptor_set_layout;
+use create_descriptor_set_layout::*;
+
 fn main() -> Result<()> {
     pretty_env_logger::init();
 
@@ -186,7 +189,7 @@ impl App {
         create_swapchain_image_views(&device, &mut data)?;
     
         create_render_pass(&instance, &device, &data.swapchain_format, &mut data.render_pass)?;
-        create_descriptor_set_layout(&device, &mut data)?;
+        create_descriptor_set_layout(&device, &mut data.descriptor_set_layout)?;
         create_pipeline(&device, &mut data)?;
         create_framebuffers(&device, &mut data)?;
         create_command_pool(&instance, &device, &mut data)?;
@@ -550,25 +553,6 @@ unsafe fn get_memory_type_index(
             suitable && memory_type.property_flags.contains(properties)
         })
         .ok_or_else(|| anyhow!("Failed to find suitable memory type."))
-}
-
-unsafe fn create_descriptor_set_layout(
-    device: &Device,
-    data: &mut AppData,
-) -> Result<()> {
-    let ubo_binding = vk::DescriptorSetLayoutBinding::builder()
-        .binding(0)
-        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::VERTEX);
-
-    let bindings = &[ubo_binding];
-    let info = vk::DescriptorSetLayoutCreateInfo::builder()
-        .bindings(bindings);        
-    
-    data.descriptor_set_layout = device.create_descriptor_set_layout(&info, None)?;
-
-    Ok(())
 }
 
 unsafe fn create_sync_objects(device: &Device, data: &mut AppData) -> Result<()> {
