@@ -21,7 +21,6 @@ use std::collections::HashSet;
 use std::ffi::CStr;
 use std::os::raw::c_void;
 
-use thiserror::Error;
 use anyhow::{anyhow, Result};
 
 use vulkanalia::loader::{LibloadingLoader, LIBRARY};
@@ -48,6 +47,9 @@ use crate::create_renderpass::*;
 
 mod create_descriptor_set_layout;
 use create_descriptor_set_layout::*;
+
+mod queue_family_indices;
+use queue_family_indices::*;
 
 fn main() -> Result<()> {
     pretty_env_logger::init();
@@ -644,7 +646,7 @@ unsafe fn create_command_pool(
     device: &Device,
     data: &mut AppData,
 ) -> Result<()> {
-    let indices = QueueFamilyIndices::get(instance, data, data.physical_device)?;
+    let indices = QueueFamilyIndices::get(instance, &data.surface, data.physical_device)?;
 
     let info = vk::CommandPoolCreateInfo::builder()
         .flags(vk::CommandPoolCreateFlags::empty()) // Optional.
@@ -679,7 +681,7 @@ unsafe fn create_logical_device(
     instance: &Instance,
     data: &mut AppData,
 ) -> Result<Device> {
-    let indices = QueueFamilyIndices::get(instance, data, data.physical_device)?;
+    let indices = QueueFamilyIndices::get(instance, &data.surface, data.physical_device)?;
 
     // HashSet cannot contain duplicates, thus if the indices are equal, there will only be built one queue_family.
     let mut unique_indices = HashSet::new();
@@ -723,9 +725,7 @@ unsafe fn create_logical_device(
     return Ok(device);
 }
 
-#[derive(Debug, Error)]
-#[error("Missing {0}.")]
-pub struct SuitabilityError(pub &'static str);
+
 
 unsafe fn pick_physical_device(instance: &Instance, data: &mut AppData) -> Result<()> {
     for physical_device in instance.enumerate_physical_devices()? {
@@ -763,7 +763,7 @@ unsafe fn check_physical_device(
         return Err(anyhow!(SuitabilityError("Missing geometry shader support.")));
     }
 
-    QueueFamilyIndices::get(instance, data, physical_device)?;
+    QueueFamilyIndices::get(instance, &data.surface, physical_device)?;
 
     check_physical_device_extensions(instance, physical_device)?;
 
@@ -789,46 +789,6 @@ unsafe fn check_physical_device_extensions(
         Ok(())
     } else {
         Err(anyhow!(SuitabilityError("Missing required device extensions.")))
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-struct QueueFamilyIndices {
-    graphics: u32,
-    present: u32,
-}
-
-impl QueueFamilyIndices {
-    unsafe fn get(
-        instance: &Instance,
-        data: &AppData,
-        physical_device: vk::PhysicalDevice,
-    ) -> Result<Self> {
-        let properties = instance
-            .get_physical_device_queue_family_properties(physical_device);
-
-        let graphics = properties
-            .iter()
-            .position(|p| p.queue_flags.contains(vk::QueueFlags::GRAPHICS))
-            .map(|i| i as u32);
-
-        let mut present = None;
-        for (index, properties) in properties.iter().enumerate() {
-            if instance.get_physical_device_surface_support_khr(
-                physical_device,
-                index as u32,
-                data.surface,
-            )? {
-                present = Some(index as u32);
-                break;
-            }
-        }
-
-        if let (Some(graphics), Some(present)) = (graphics, present) {
-            Ok(Self { graphics, present })
-        } else {
-            Err(anyhow!(SuitabilityError("Missing required queue families.")))
-        }
     }
 }
 
@@ -1021,7 +981,7 @@ unsafe fn create_swapchain(
     device: &Device,
     data: &mut AppData,
 ) -> Result<()> {
-    let indices = QueueFamilyIndices::get(instance, data, data.physical_device)?;
+    let indices = QueueFamilyIndices::get(instance, &data.surface, data.physical_device)?;
     let support = SwapchainSupport::get(instance, data, data.physical_device)?;
 
     let surface_format = get_swapchain_surface_format(&support.formats);
