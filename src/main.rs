@@ -34,7 +34,7 @@ use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
 use winit::dpi::LogicalSize;
-use winit::event::{Event, WindowEvent};
+use winit::event::{Event, WindowEvent, VirtualKeyCode, ElementState};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
@@ -62,6 +62,18 @@ fn main() -> Result<()> {
             // Render a frame if our Vulkan app is not being destroyed.
             Event::MainEventsCleared if !destroying && !minimized =>
                 unsafe { app.render(&window) }.unwrap(),
+
+            Event::WindowEvent { event: WindowEvent::KeyboardInput { input, .. }, .. } => {
+                debug!("This input event was recorded: {:#?}, the scancode is {}", input, input.scancode);
+
+                if input.state == ElementState::Released {
+                    match input.virtual_keycode {
+                        Some(VirtualKeyCode::Escape) => control_flow.set_exit(),
+                        Some(VirtualKeyCode::R) => app.reload_shader(&window),
+                        _ => {}
+                    }
+                }
+            },
 
             // Window is resized and swapchain needs to be recreated. If app is minimized, rendering will seize.
             Event::WindowEvent { event: WindowEvent::Resized(size), .. } =>
@@ -322,6 +334,10 @@ impl App {
         self.frame = (self.frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
         Ok(())
+    }
+
+    fn reload_shader(&mut self, window: &Window) {
+        info!("Im now going to reload the shader!")
     }
 
     unsafe fn recreate_swapchain(&mut self, window: &Window) -> Result<()> {
