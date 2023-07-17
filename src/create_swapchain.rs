@@ -31,12 +31,7 @@ pub unsafe fn create_swapchain(
     let present_mode = get_swapchain_present_mode(&support.present_modes);
     let extent = get_swapchain_extent(window, support.capabilities);
 
-    let mut image_count = support.capabilities.min_image_count + 1;
-    if support.capabilities.max_image_count != 0
-        && image_count > support.capabilities.max_image_count
-    {
-        image_count = support.capabilities.max_image_count;
-    }
+    let image_count = get_optimal_image_count(&support);
 
     let mut queue_family_indices = vec![];
     let image_sharing_mode = if indices.graphics != indices.present {
@@ -66,11 +61,21 @@ pub unsafe fn create_swapchain(
     let swapchain = device.create_swapchain_khr(&info, None)?;
 
     return Ok (CreateSwapchainOutput {
-        swapchain: swapchain,
+        swapchain,
         swapchain_images: device.get_swapchain_images_khr(swapchain)?,
         swapchain_format: surface_format.format,
         swapchain_extent: extent
     });
+}
+
+fn get_optimal_image_count(support: &SwapchainSupport) -> u32 {
+    let mut image_count = support.capabilities.min_image_count + 1;
+    if support.capabilities.max_image_count != 0
+        && image_count > support.capabilities.max_image_count
+    {
+        image_count = support.capabilities.max_image_count;
+    }
+    image_count
 }
 
 fn get_swapchain_surface_format(
