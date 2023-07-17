@@ -57,6 +57,9 @@ use swapchain_support::*;
 mod create_swapchain;
 use create_swapchain::*;
 
+mod create_framebuffers;
+use create_framebuffers::*;
+
 fn main() -> Result<()> {
     pretty_env_logger::init();
 
@@ -204,7 +207,7 @@ impl App {
         create_render_pass(&instance, &device, &data.swapchain_format, &mut data.render_pass)?;
         create_descriptor_set_layout(&device, &mut data.descriptor_set_layout)?;
         create_pipeline(&device, &mut data)?;
-        create_framebuffers(&device, &mut data)?;
+        create_framebuffers(&device, &data.swapchain_image_views, &data.render_pass, &data.swapchain_extent, &mut data.framebuffers)?;
         create_command_pool(&instance, &device, &mut data)?;
         create_uniform_buffers(&instance, &device, &mut data)?;
         create_descriptor_pool(&device, &mut data)?;
@@ -310,7 +313,7 @@ impl App {
         create_swapchain_image_views(&self.device, &mut self.data)?;
         create_render_pass(&self.instance, &self.device, &self.data.swapchain_format, &mut self.data.render_pass)?;
         create_pipeline(&self.device, &mut self.data)?;
-        create_framebuffers(&self.device, &mut self.data)?;
+        create_framebuffers(&self.device, &self.data.swapchain_image_views, &self.data.render_pass, &self.data.swapchain_extent, &mut self.data.framebuffers)?;
         create_uniform_buffers(&self.instance, &self.device, &mut self.data)?;
         create_descriptor_pool(&self.device, &mut self.data)?;
         create_descriptor_sets(&self.device, &mut self.data)?;
@@ -674,26 +677,6 @@ unsafe fn create_command_pool(
         .queue_family_index(indices.graphics);
 
     data.command_pool = device.create_command_pool(&info, None)?;
-
-    Ok(())
-}
-
-unsafe fn create_framebuffers(device: &Device, data: &mut AppData) -> Result<()> {
-    data.framebuffers = data
-        .swapchain_image_views
-        .iter()
-        .map(|i| {
-            let attachments = &[*i];
-            let create_info = vk::FramebufferCreateInfo::builder()
-                .render_pass(data.render_pass)
-                .attachments(attachments)
-                .width(data.swapchain_extent.width)
-                .height(data.swapchain_extent.height)
-                .layers(1);
-
-            device.create_framebuffer(&create_info, None)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(())
 }
