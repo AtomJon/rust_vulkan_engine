@@ -104,7 +104,6 @@ fn get_swapchain_extent(
         capabilities.current_extent
     } else {
         let size = window.inner_size();
-        let clamp = |min: u32, max: u32, v: u32| min.max(max.min(v));
         vk::Extent2D::builder()
             .width(clamp(
                 capabilities.min_image_extent.width,
@@ -118,4 +117,8 @@ fn get_swapchain_extent(
             ))
             .build()
     }
+}
+
+fn clamp(min: u32, max: u32, v: u32) -> u32 {
+    return min.max(max.min(v));
 }
