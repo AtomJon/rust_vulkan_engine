@@ -23,6 +23,7 @@ use std::os::raw::c_void;
 
 use anyhow::{anyhow, Result};
 
+use buffers::common::create_buffer;
 use vulkanalia::loader::{LibloadingLoader, LIBRARY};
 use vulkanalia::window as vk_window;
 use vulkanalia::prelude::v1_0::*;
@@ -59,6 +60,9 @@ use create_swapchain::*;
 
 mod create_framebuffers;
 use create_framebuffers::*;
+
+mod buffers;
+use buffers::create_vertex_buffer::*;
 
 fn main() -> Result<()> {
     pretty_env_logger::init();
@@ -212,7 +216,11 @@ impl App {
         create_uniform_buffers(&instance, &device, &mut data)?;
         create_descriptor_pool(&device, &mut data)?;
         create_descriptor_sets(&device, &mut data)?;
-        create_vertex_buffer(&instance, &device, &mut data)?;
+
+        let (vertex_buffer, vertex_buffer_memory) = create_vertex_buffer(&instance, &device, &data.physical_device)?;
+        data.vertex_buffer = vertex_buffer;
+        data.vertex_buffer_memory = vertex_buffer_memory;
+
         create_command_buffers(&device, &mut data)?;
 
         create_sync_objects(&device, &mut data)?;
@@ -417,47 +425,6 @@ struct AppData {
     vertex_buffer_memory: vk::DeviceMemory,
 }
 
-unsafe fn create_vertex_buffer(
-    instance: &Instance,
-    device: &Device,
-    data: &mut AppData,
-) -> Result<()> {
-    let buffer_info = vk::BufferCreateInfo::builder()
-        .size((size_of::<Vertex>() * VERTICES.len()) as u64)
-        .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
-        .sharing_mode(vk::SharingMode::EXCLUSIVE)
-        .flags(vk::BufferCreateFlags::empty());
-
-    data.vertex_buffer = device.create_buffer(&buffer_info, None)?;
-
-    let requirements = device.get_buffer_memory_requirements(data.vertex_buffer);
-
-    let memory_info = vk::MemoryAllocateInfo::builder()
-        .allocation_size(requirements.size)
-        .memory_type_index(get_memory_type_index(
-            instance,
-            data,
-            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-            requirements,
-        )?);
-    
-    data.vertex_buffer_memory = device.allocate_memory(&memory_info, None)?;
-
-    device.bind_buffer_memory(data.vertex_buffer, data.vertex_buffer_memory, 0)?;
-
-    let memory = device.map_memory(
-        data.vertex_buffer_memory,
-        0,
-        buffer_info.size,
-        vk::MemoryMapFlags::empty(),
-    )?;
-
-    memcpy(VERTICES.as_ptr(), memory.cast(), VERTICES.len());
-    device.unmap_memory(data.vertex_buffer_memory);
-
-    Ok(())
-}
-
 unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<()> {
     let layouts = vec![data.descriptor_set_layout; data.swapchain_images.len()];
     let info = vk::DescriptorSetAllocateInfo::builder()
@@ -520,7 +487,7 @@ unsafe fn create_uniform_buffers(
         let (uniform_buffer, uniform_buffer_memory) = create_buffer(
             instance,
             device,
-            data,
+            &data.physical_device,
             size_of::<UniformBufferObject>() as u64,
             vk::BufferUsageFlags::UNIFORM_BUFFER,
             vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
@@ -531,54 +498,6 @@ unsafe fn create_uniform_buffers(
     }
 
     Ok(())
-}
-
-unsafe fn create_buffer(
-    instance: &Instance,
-    device: &Device,
-    data: &AppData,
-    size: vk::DeviceSize,
-    usage: vk::BufferUsageFlags,
-    properties: vk::MemoryPropertyFlags,
-) -> Result<(vk::Buffer, vk::DeviceMemory)> {
-    // Buffer
-
-    let buffer_info = vk::BufferCreateInfo::builder()
-        .size(size)
-        .usage(usage)
-        .sharing_mode(vk::SharingMode::EXCLUSIVE);
-
-    let buffer = device.create_buffer(&buffer_info, None)?;
-
-    // Memory
-
-    let requirements = device.get_buffer_memory_requirements(buffer);
-
-    let memory_info = vk::MemoryAllocateInfo::builder()
-        .allocation_size(requirements.size)
-        .memory_type_index(get_memory_type_index(instance, data, properties, requirements)?);
-
-    let buffer_memory = device.allocate_memory(&memory_info, None)?;
-
-    device.bind_buffer_memory(buffer, buffer_memory, 0)?;
-
-    Ok((buffer, buffer_memory))
-}
-
-unsafe fn get_memory_type_index(
-    instance: &Instance,
-    data: &AppData,
-    properties: vk::MemoryPropertyFlags,
-    requirements: vk::MemoryRequirements,
-) -> Result<u32> {
-    let memory = instance.get_physical_device_memory_properties(data.physical_device);
-    (0..memory.memory_type_count)
-        .find(|i| {
-            let suitable = (requirements.memory_type_bits & (1 << i)) != 0;
-            let memory_type = memory.memory_types[*i as usize];
-            suitable && memory_type.property_flags.contains(properties)
-        })
-        .ok_or_else(|| anyhow!("Failed to find suitable memory type."))
 }
 
 unsafe fn create_sync_objects(device: &Device, data: &mut AppData) -> Result<()> {
