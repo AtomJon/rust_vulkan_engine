@@ -896,8 +896,6 @@ unsafe fn create_shader_module(
     Ok(device.create_shader_module(&info, None)?)
 }
 
-
-
 extern "system" fn debug_callback(
     severity: vk::DebugUtilsMessageSeverityFlagsEXT,
     type_: vk::DebugUtilsMessageTypeFlagsEXT,
