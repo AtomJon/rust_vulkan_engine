@@ -13,15 +13,13 @@ const VALIDATION_LAYER: vk::ExtensionName =
 const DEVICE_EXTENSIONS: &[vk::ExtensionName] = &[vk::KHR_SWAPCHAIN_EXTENSION.name];
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
-
-use std::process::Command;
+    
 use std::ptr::copy_nonoverlapping as memcpy;
 use std::time::Instant;
 use std::mem::size_of;
 use std::collections::HashSet;
 use std::ffi::CStr;
 use std::os::raw::c_void;
-use std::fs;
 
 use anyhow::{anyhow, Result};
 
@@ -65,6 +63,9 @@ use create_framebuffers::*;
 
 mod buffers;
 use buffers::create_vertex_buffer::*;
+
+mod shader_manager;
+use shader_manager::*;
 
 fn main() -> Result<()> {
     pretty_env_logger::init();
@@ -196,6 +197,8 @@ struct App {
     frame: usize,
     start: Instant,
     resized: bool,
+
+    shader_manager: ShaderManager
 }
 
 impl App {
@@ -223,7 +226,10 @@ impl App {
     
         create_render_pass(&instance, &device, &data.swapchain_format, &mut data.render_pass)?;
         create_descriptor_set_layout(&device, &mut data.descriptor_set_layout)?;
-        create_pipeline(&device, &mut data)?;
+
+        let shader_manager = ShaderManager::create()?;
+        create_pipeline(&device, &shader_manager, &mut data)?;
+        
         create_framebuffers(&device, &data.swapchain_image_views, &data.render_pass, &data.swapchain_extent, &mut data.framebuffers)?;
         create_command_pool(&instance, &device, &mut data)?;
         create_uniform_buffers(&instance, &device, &mut data)?;
@@ -238,7 +244,7 @@ impl App {
 
         create_sync_objects(&device, &mut data)?;
 
-        Ok(Self { entry, instance, data, device, frame: 0, start: Instant::now(), resized: false })
+        Ok(Self { entry, instance, data, device, frame: 0, start: Instant::now(), resized: false, shader_manager })
     }
 
     /// Renders a frame for our Vulkan app.
@@ -316,35 +322,7 @@ impl App {
     }
 
     unsafe fn reload_shader(&mut self, window: &Window) -> Result<()> {
-        info!("Im now going to reload the shader!");
-
-        let binding = std::path::Path::
-            new(format!("./{}", file!()).as_str())
-            .canonicalize()?;
-        let dir = binding
-            .parent().unwrap()
-            .parent().unwrap()
-            .join("./shaders/")
-            .canonicalize()?
-            ;
-        info!("{:?}", dir);
-
-        let result = Command::new("sh")
-            .current_dir(&dir)
-            .arg(format!("{0}/compile.sh", dir.to_string_lossy()))
-            .output();
-
-        if result.is_err() {
-            error!("Shader compilation error:\n{:#?}", result.as_ref().err());
-        }
-
-        let output = result.unwrap();
-
-        debug!("Shader compilation output: {:#?}", output);
-
-        self.device.device_wait_idle()?;
-        self.device.destroy_pipeline(self.data.pipeline, None);
-        create_pipeline(&self.device, &mut self.data)?;
+        info!("Reloading shader");
         self.recreate_swapchain(window)?;
 
         Ok(())
@@ -366,9 +344,9 @@ impl App {
         self.data.swapchain_format = swapchain_data.swapchain_format;
         self.data.swapchain_images = swapchain_data.swapchain_images;
 
-        create_swapchain_image_views(&self.device, &mut self.data)?;
         create_render_pass(&self.instance, &self.device, &self.data.swapchain_format, &mut self.data.render_pass)?;
-        create_pipeline(&self.device, &mut self.data)?;
+        create_pipeline(&self.device, &mut self.shader_manager, &mut self.data)?;
+        create_swapchain_image_views(&self.device, &mut self.data)?;
         create_framebuffers(&self.device, &self.data.swapchain_image_views, &self.data.render_pass, &self.data.swapchain_extent, &mut self.data.framebuffers)?;
         create_uniform_buffers(&self.instance, &self.device, &mut self.data)?;
         create_descriptor_pool(&self.device, &mut self.data)?;
@@ -798,12 +776,11 @@ unsafe fn create_swapchain_image_views(
     Ok(())
 }
 
-unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
-    let vert = fs::read("/home/neutronic/Documents/Projects/rust_vulkan_engine_reload_shader/shaders/vert.spv")?;
-    let frag = fs::read("/home/neutronic/Documents/Projects/rust_vulkan_engine_reload_shader/shaders/frag.spv")?;
+unsafe fn create_pipeline(device: &Device, shader_manager: &ShaderManager, data: &mut AppData) -> Result<()> {
+    let bytecode = shader_manager.get_shaders_bytecode()?;
 
-    let vert_shader_module = create_shader_module(device, &vert[..])?;
-    let frag_shader_module = create_shader_module(device, &frag[..])?;
+    let vert_shader_module = create_shader_module(device, &bytecode.vertex)?;
+    let frag_shader_module = create_shader_module(device, &bytecode.fragment)?;
 
     let vert_stage = vk::PipelineShaderStageCreateInfo::builder()
         .stage(vk::ShaderStageFlags::VERTEX)
