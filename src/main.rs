@@ -14,12 +14,14 @@ const DEVICE_EXTENSIONS: &[vk::ExtensionName] = &[vk::KHR_SWAPCHAIN_EXTENSION.na
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
+use std::process::Command;
 use std::ptr::copy_nonoverlapping as memcpy;
 use std::time::Instant;
 use std::mem::size_of;
 use std::collections::HashSet;
 use std::ffi::CStr;
 use std::os::raw::c_void;
+use std::fs;
 
 use anyhow::{anyhow, Result};
 
@@ -31,7 +33,7 @@ use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
 use winit::dpi::LogicalSize;
-use winit::event::{Event, WindowEvent};
+use winit::event::{Event, WindowEvent, VirtualKeyCode, ElementState};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
@@ -87,7 +89,20 @@ fn main() -> Result<()> {
             Event::MainEventsCleared if !destroying && !minimized =>
                 unsafe { app.render(&window) }.unwrap(),
 
-            // Window is resized and swapchain needs to be recreated. Make sure to update minimized variable.
+
+            Event::WindowEvent { event: WindowEvent::KeyboardInput { input, .. }, .. } => {
+                debug!("This input event was recorded: {:#?}, the scancode is {}", input, input.scancode);
+
+                if input.state == ElementState::Released {
+                    match input.virtual_keycode {
+                        Some(VirtualKeyCode::Escape) => control_flow.set_exit(),
+                        Some(VirtualKeyCode::R) => unsafe { app.reload_shader(&window) }.unwrap(),
+                        _ => {}
+                    }
+                }
+            },
+
+            // Window is resized and swapchain needs to be recreated. If app is minimized, rendering will seize.
             Event::WindowEvent { event: WindowEvent::Resized(size), .. } =>
             {
                 if size.width == 0 && size.height == 0 {
@@ -109,8 +124,6 @@ fn main() -> Result<()> {
         }
     });
 }
-
-
 
 unsafe fn create_instance(
     window: &Window,
@@ -298,6 +311,41 @@ impl App {
         }
 
         self.frame = (self.frame + 1) % MAX_FRAMES_IN_FLIGHT;
+
+        Ok(())
+    }
+
+    unsafe fn reload_shader(&mut self, window: &Window) -> Result<()> {
+        info!("Im now going to reload the shader!");
+
+        let binding = std::path::Path::
+            new(format!("./{}", file!()).as_str())
+            .canonicalize()?;
+        let dir = binding
+            .parent().unwrap()
+            .parent().unwrap()
+            .join("./shaders/")
+            .canonicalize()?
+            ;
+        info!("{:?}", dir);
+
+        let result = Command::new("sh")
+            .current_dir(&dir)
+            .arg(format!("{0}/compile.sh", dir.to_string_lossy()))
+            .output();
+
+        if result.is_err() {
+            error!("Shader compilation error:\n{:#?}", result.as_ref().err());
+        }
+
+        let output = result.unwrap();
+
+        debug!("Shader compilation output: {:#?}", output);
+
+        self.device.device_wait_idle()?;
+        self.device.destroy_pipeline(self.data.pipeline, None);
+        create_pipeline(&self.device, &mut self.data)?;
+        self.recreate_swapchain(window)?;
 
         Ok(())
     }
@@ -751,8 +799,8 @@ unsafe fn create_swapchain_image_views(
 }
 
 unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
-    let vert = include_bytes!("../shaders/vert.spv");
-    let frag = include_bytes!("../shaders/frag.spv");
+    let vert = fs::read("/home/neutronic/Documents/Projects/rust_vulkan_engine_reload_shader/shaders/vert.spv")?;
+    let frag = fs::read("/home/neutronic/Documents/Projects/rust_vulkan_engine_reload_shader/shaders/frag.spv")?;
 
     let vert_shader_module = create_shader_module(device, &vert[..])?;
     let frag_shader_module = create_shader_module(device, &frag[..])?;
