@@ -397,7 +397,6 @@ impl App {
 
     /// Destroys our Vulkan app.
     unsafe fn destroy(&mut self) {
-
         self.destroy_swapchain();
 
         self.device.destroy_buffer(self.data.vertex_buffer, None);
