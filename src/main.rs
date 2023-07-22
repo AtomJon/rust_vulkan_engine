@@ -46,8 +46,8 @@ use crate::uniform_buffer_object::UniformBufferObject;
 mod create_renderpass;
 use crate::create_renderpass::*;
 
-mod create_descriptor_set_layout;
-use create_descriptor_set_layout::*;
+mod create_descriptor_sets;
+use create_descriptor_sets::*;
 
 mod queue_family_indices;
 use queue_family_indices::*;
@@ -225,7 +225,7 @@ impl App {
         create_swapchain_image_views(&device, &mut data)?;
     
         create_render_pass(&instance, &device, &data.swapchain_format, &mut data.render_pass)?;
-        create_descriptor_set_layout(&device, &mut data.descriptor_set_layout)?;
+        data.descriptor_set_layout = create_descriptor_set_layout(&device)?;
 
         let shader_manager = ShaderManager::create()?;
         create_pipeline(&device, &shader_manager, &mut data)?;
@@ -233,8 +233,16 @@ impl App {
         create_framebuffers(&device, &data.swapchain_image_views, &data.render_pass, &data.swapchain_extent, &mut data.framebuffers)?;
         create_command_pool(&instance, &device, &mut data)?;
         create_uniform_buffers(&instance, &device, &mut data)?;
-        create_descriptor_pool(&device, &mut data)?;
-        create_descriptor_sets(&device, &mut data)?;
+
+        let pool_size = data.swapchain_images.len();
+        data.descriptor_pool = create_descriptor_pool(&device, pool_size as u32)?;
+        data.descriptor_sets = create_descriptor_sets(
+            &device,
+            &data.descriptor_set_layout,
+            &data.descriptor_pool,
+            pool_size,
+            &data.uniform_buffers
+        )?;
 
         let (vertex_buffer, vertex_buffer_memory) = create_vertex_buffer(&instance, &device, &data.physical_device)?;
         data.vertex_buffer = vertex_buffer;
@@ -349,8 +357,10 @@ impl App {
         create_swapchain_image_views(&self.device, &mut self.data)?;
         create_framebuffers(&self.device, &self.data.swapchain_image_views, &self.data.render_pass, &self.data.swapchain_extent, &mut self.data.framebuffers)?;
         create_uniform_buffers(&self.instance, &self.device, &mut self.data)?;
-        create_descriptor_pool(&self.device, &mut self.data)?;
-        create_descriptor_sets(&self.device, &mut self.data)?;
+
+        let pool_size = self.data.swapchain_images.len();
+        self.data.descriptor_pool = create_descriptor_pool(&self.device, pool_size as u32)?;
+        self.data.descriptor_sets = create_descriptor_sets(&self.device, &self.data.descriptor_set_layout, &self.data.descriptor_pool, pool_size, &self.data.uniform_buffers)?;
         create_command_buffers(&self.device, &mut self.data)?;
 
         self.data
@@ -448,51 +458,6 @@ struct AppData {
     descriptor_sets: Vec<vk::DescriptorSet>,
     vertex_buffer: vk::Buffer,
     vertex_buffer_memory: vk::DeviceMemory,
-}
-
-unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<()> {
-    let layouts = vec![data.descriptor_set_layout; data.swapchain_images.len()];
-    let info = vk::DescriptorSetAllocateInfo::builder()
-        .descriptor_pool(data.descriptor_pool)
-        .set_layouts(&layouts);
-        
-    data.descriptor_sets = device.allocate_descriptor_sets(&info)?;
-
-    for i in 0..data.swapchain_images.len() {
-        for i in 0..data.swapchain_images.len() {
-            let info = vk::DescriptorBufferInfo::builder()
-                .buffer(data.uniform_buffers[i])
-                .offset(0)
-                .range(size_of::<UniformBufferObject>() as u64);
-
-            let buffer_info = &[info];
-            let ubo_write = vk::WriteDescriptorSet::builder()
-                .dst_set(data.descriptor_sets[i])
-                .dst_binding(0)
-                .dst_array_element(0)
-                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .buffer_info(buffer_info);
-
-            device.update_descriptor_sets(&[ubo_write], &[] as &[vk::CopyDescriptorSet]);
-        }
-    }
-
-    Ok(())
-}
-
-unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<()> {
-    let ubo_size = vk::DescriptorPoolSize::builder()
-        .type_(vk::DescriptorType::UNIFORM_BUFFER)
-        .descriptor_count(data.swapchain_images.len() as u32);
-
-    let pool_sizes = &[ubo_size];
-    let info = vk::DescriptorPoolCreateInfo::builder()
-        .pool_sizes(pool_sizes)
-        .max_sets(data.swapchain_images.len() as u32);
-
-    data.descriptor_pool = device.create_descriptor_pool(&info, None)?;
-
-    Ok(())
 }
 
 unsafe fn create_uniform_buffers(
