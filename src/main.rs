@@ -455,11 +455,6 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
     let info = vk::DescriptorSetAllocateInfo::builder()
         .descriptor_pool(data.descriptor_pool)
         .set_layouts(&layouts);
-
-    let layouts = vec![data.descriptor_set_layout; data.swapchain_images.len()];
-    let info = vk::DescriptorSetAllocateInfo::builder()
-        .descriptor_pool(data.descriptor_pool)
-        .set_layouts(&layouts);
         
     data.descriptor_sets = device.allocate_descriptor_sets(&info)?;
 
