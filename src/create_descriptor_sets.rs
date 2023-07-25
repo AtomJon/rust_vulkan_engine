@@ -62,7 +62,8 @@ pub unsafe fn create_descriptor_set_layout(
         .binding(0)
         .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
         .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::VERTEX);
+        // .stage_flags(vk::ShaderStageFlags::VERTEX & vk::ShaderStageFlags::FRAGMENT)
+        .stage_flags(vk::ShaderStageFlags::ALL);
 
     let bindings = &[ubo_binding];
     let info = vk::DescriptorSetLayoutCreateInfo::builder()

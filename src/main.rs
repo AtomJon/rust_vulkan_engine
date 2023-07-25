@@ -24,6 +24,7 @@ use std::os::raw::c_void;
 use anyhow::{anyhow, Result};
 
 use buffers::common::create_buffer;
+use nalgebra_glm::{DVec2, make_vec2, Vec2};
 use vulkanalia::loader::{LibloadingLoader, LIBRARY};
 use vulkanalia::window as vk_window;
 use vulkanalia::prelude::v1_0::*;
@@ -165,6 +166,10 @@ unsafe fn create_instance(
 
     if VALIDATION_ENABLED {
         extensions.push(vk::EXT_DEBUG_UTILS_EXTENSION.name.as_ptr());
+    }
+
+    for ele in &extensions {
+        debug!("Extension '{:?}' required for instance.", *ele);
     }
 
     let mut info = vk::InstanceCreateInfo::builder()
@@ -394,10 +399,17 @@ impl App {
 
     // TODO: CHANGE TO PUSH CONSTANT
     unsafe fn update_uniform_buffer(&self, image_index: usize) -> Result<()> {
-        let time = self.start.elapsed().as_secs_f32();
 
+        let extent = self.data.swapchain_extent;
+        let resolution = Vec2::new(extent.width as f32, extent.height as f32);
+
+        let time = self.start.elapsed().as_secs_f32();
         let ubo = UniformBufferObject {
-            time: time
+            time: time,
+
+            width: extent.width as f32,
+            height: extent.height as f32
+            // resolution: resolution
         };
 
         let memory = self.device.map_memory(
