@@ -636,9 +636,9 @@ unsafe fn create_logical_device(
     let features = vk::PhysicalDeviceFeatures::builder();
 
     let extensions = DEVICE_EXTENSIONS
-    .iter()
-    .map(|n| n.as_ptr())
-    .collect::<Vec<_>>();
+        .iter()
+        .map(|n| n.as_ptr())
+        .collect::<Vec<_>>();
 
     let info = vk::DeviceCreateInfo::builder()
         .queue_create_infos(&queue_infos)
