@@ -27,7 +27,7 @@ use buffers::common::create_buffer;
 use nalgebra_glm::{DVec2, make_vec2, Vec2};
 use vulkanalia::loader::{LibloadingLoader, LIBRARY};
 use vulkanalia::window as vk_window;
-use vulkanalia::prelude::v1_0::*;
+use vulkanalia::prelude::v1_1::*;
 use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
@@ -157,7 +157,7 @@ unsafe fn create_instance(
         .application_version(vk::make_version(1, 0, 0))
         .engine_name(b"No Engine\0")
         .engine_version(vk::make_version(1, 0, 0))
-        .api_version(vk::make_version(1, 0, 0));
+        .api_version(vk::make_version(1, 1, 0));
 
     let mut extensions = vk_window::get_required_instance_extensions(window)
         .iter()
@@ -684,6 +684,12 @@ unsafe fn check_physical_device(
     // if properties.device_type != vk::PhysicalDeviceType::DISCRETE_GPU {
     //     return Err(anyhow!(SuitabilityError("Only discrete GPUs are supported.")));
     // }
+    
+    let version = properties.api_version;
+    if vk::version_major(version) < 1 || vk::version_minor(version) < 1 {
+        debug!("Device api_version in less than 1.1; {}.{}", vk::version_major(version), vk::version_minor(version));
+        return Err(anyhow!(SuitabilityError("Api version is insufficient")));
+    }
 
     let features = instance
         .get_physical_device_features(physical_device);
