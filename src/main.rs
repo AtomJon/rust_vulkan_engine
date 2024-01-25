@@ -143,7 +143,7 @@ unsafe fn create_instance(
         .collect::<HashSet<_>>();
 
     if VALIDATION_ENABLED && !available_layers.contains(&VALIDATION_LAYER) {
-        return Err(anyhow!("Validation layer requested but not supported."));
+        return Err(anyhow!("Validation layer requested but not supported.\nHave you set env 'VK_LOADER_DEBUG' to 'all'?"));
     }
 
     let layers = if VALIDATION_ENABLED {
